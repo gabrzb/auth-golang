@@ -12,12 +12,17 @@ import (
 const UserIDKey = "user_id"
 const TokenKey = "token"
 
-// tokenValidator is the narrow interface the middleware needs (SOLID-I, SOLID-D).
+// tokenValidator is the narrow interface for JWT validation (SOLID-I, SOLID-D).
 type tokenValidator interface {
 	ValidateToken(tokenString string) (*services.Claims, error)
 }
 
-func Auth(validator tokenValidator) gin.HandlerFunc {
+// blacklistChecker is the narrow interface for blacklist lookup (SOLID-I, SOLID-D).
+type blacklistChecker interface {
+	Contains(token string) (bool, error)
+}
+
+func Auth(validator tokenValidator, blacklist blacklistChecker) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		if !strings.HasPrefix(header, "Bearer ") {
@@ -34,6 +39,16 @@ func Auth(validator tokenValidator) gin.HandlerFunc {
 				return
 			}
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
+
+		revoked, err := blacklist.Contains(tokenString)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+			return
+		}
+		if revoked {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token has been revoked"})
 			return
 		}
 

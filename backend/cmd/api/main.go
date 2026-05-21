@@ -31,7 +31,7 @@ func main() {
 	userHandler := handlers.NewUserHandler(authService)
 
 	r := gin.Default()
-	routes.Setup(r, authHandler, userHandler, middleware.Auth(jwtService))
+	routes.Setup(r, authHandler, userHandler, middleware.Auth(jwtService, redisStore))
 
 	addr := ":" + cfg.Port
 	log.Printf("Server starting on %s", addr)
