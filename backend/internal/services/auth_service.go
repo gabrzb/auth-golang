@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -27,7 +28,7 @@ type jwtService interface {
 // tokenBlacklist is the narrow interface for revoking tokens (SOLID-I, SOLID-D).
 type tokenBlacklist interface {
 	Add(token string, ttl time.Duration) error
-	Contains(token string) (bool, error)
+	Contains(ctx context.Context, token string) (bool, error)
 }
 
 type AuthService struct {
@@ -115,10 +116,9 @@ func (s *AuthService) Refresh(refreshToken string) (string, int, error) {
 }
 
 func (s *AuthService) Logout(accessToken, refreshToken string) error {
-	if err := s.blacklistToken(accessToken); err != nil {
-		return err
-	}
-	return s.blacklistToken(refreshToken)
+	errAccess := s.blacklistToken(accessToken)
+	errRefresh := s.blacklistToken(refreshToken)
+	return errors.Join(errAccess, errRefresh)
 }
 
 // blacklistToken adds a token to the blacklist with a TTL equal to its remaining lifetime (DRY).

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/gabrzb/auth-go-gin/internal/middleware"
@@ -41,7 +42,16 @@ type logoutRequest struct {
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
-	accessToken, _ := c.Get(middleware.TokenKey)
+	val, exists := c.Get(middleware.TokenKey)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
+		return
+	}
+	accessToken, ok := val.(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token format"})
+		return
+	}
 
 	var req logoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -49,7 +59,12 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.Logout(accessToken.(string), req.RefreshToken); err != nil {
+	if err := h.svc.Logout(accessToken, req.RefreshToken); err != nil {
+		if errors.Is(err, services.ErrInvalidToken) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
+		log.Printf("logout error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
