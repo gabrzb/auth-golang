@@ -4,7 +4,7 @@ A RESTful authentication API built with Go, Gin, JWT, and PostgreSQL. Covers use
 
 ## Stack
 
-- **Go 1.22+** — language
+- **Go 1.26.3** — language
 - **Gin** — HTTP framework
 - **GORM + PostgreSQL** — ORM and database
 - **golang-jwt/jwt v5** — JWT generation and validation
@@ -46,7 +46,7 @@ cp .env.example .env
 
 ## Project structure
 
-```
+```text
 ├── backend/
 │   ├── cmd/api/main.go      # entrypoint
 │   ├── internal/
