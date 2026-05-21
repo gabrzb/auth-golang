@@ -9,14 +9,25 @@ import (
 	"gorm.io/gorm"
 )
 
-var ErrEmailAlreadyExists = errors.New("email already exists")
+var (
+	ErrEmailAlreadyExists = errors.New("email already exists")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+)
 
-type AuthService struct {
-	db *gorm.DB
+// jwtService is the narrow interface AuthService needs — defined here, at the consumption site (SOLID-I, SOLID-D).
+type jwtService interface {
+	GenerateAccessToken(userID uint, email string) (string, error)
+	GenerateRefreshToken(userID uint) (string, error)
+	AccessExpiresIn() int
 }
 
-func NewAuthService(db *gorm.DB) *AuthService {
-	return &AuthService{db: db}
+type AuthService struct {
+	db  *gorm.DB
+	jwt jwtService
+}
+
+func NewAuthService(db *gorm.DB, jwt jwtService) *AuthService {
+	return &AuthService{db: db, jwt: jwt}
 }
 
 func (s *AuthService) Register(email, password string) (*models.User, error) {
@@ -35,6 +46,32 @@ func (s *AuthService) Register(email, password string) (*models.User, error) {
 	}
 
 	return user, nil
+}
+
+func (s *AuthService) Login(email, password string) (accessToken, refreshToken string, expiresIn int, err error) {
+	var user models.User
+	if err = s.db.Where("email = ?", email).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", "", 0, ErrInvalidCredentials
+		}
+		return "", "", 0, err
+	}
+
+	if err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		return "", "", 0, ErrInvalidCredentials
+	}
+
+	accessToken, err = s.jwt.GenerateAccessToken(user.ID, user.Email)
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	refreshToken, err = s.jwt.GenerateRefreshToken(user.ID)
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	return accessToken, refreshToken, s.jwt.AccessExpiresIn(), nil
 }
 
 // isUniqueViolation checks for Postgres error code 23505 (unique_violation).

@@ -15,5 +15,6 @@ func Setup(r *gin.Engine, authHandler *handlers.AuthHandler) {
 	auth := r.Group("/auth")
 	{
 		auth.POST("/register", authHandler.Register)
+		auth.POST("/login", authHandler.Login)
 	}
 }
