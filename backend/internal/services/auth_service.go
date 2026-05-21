@@ -12,6 +12,7 @@ import (
 var (
 	ErrEmailAlreadyExists = errors.New("email already exists")
 	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrUserNotFound       = errors.New("user not found")
 )
 
 // jwtService is the narrow interface AuthService needs — defined here, at the consumption site (SOLID-I, SOLID-D).
@@ -73,6 +74,36 @@ func (s *AuthService) Login(email, password string) (accessToken, refreshToken s
 	}
 
 	return accessToken, refreshToken, s.jwt.AccessExpiresIn(), nil
+}
+
+func (s *AuthService) GetUserByID(id uint) (*models.User, error) {
+	var user models.User
+	if err := s.db.First(&user, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (s *AuthService) Refresh(refreshToken string) (string, int, error) {
+	claims, err := s.jwt.ValidateToken(refreshToken)
+	if err != nil {
+		return "", 0, err // ErrExpiredToken or ErrInvalidToken propagate as-is
+	}
+
+	user, err := s.GetUserByID(claims.UserID)
+	if err != nil {
+		return "", 0, err
+	}
+
+	access, err := s.jwt.GenerateAccessToken(user.ID, user.Email)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return access, s.jwt.AccessExpiresIn(), nil
 }
 
 // isUniqueViolation checks for Postgres error code 23505 (unique_violation).
