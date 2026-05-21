@@ -17,7 +17,12 @@ func main() {
 	db := database.Connect(cfg)
 	database.Migrate(db)
 
-	authService := services.NewAuthService(db)
+	jwtService, err := services.NewJWTService(cfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize JWT service: %v", err)
+	}
+
+	authService := services.NewAuthService(db, jwtService)
 	authHandler := handlers.NewAuthHandler(authService)
 
 	r := gin.Default()
