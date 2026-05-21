@@ -12,6 +12,7 @@ import (
 // authService is the narrow interface this handler needs — defined here, not in the service package (SOLID-I, SOLID-D).
 type authService interface {
 	Register(email, password string) (*models.User, error)
+	Login(email, password string) (accessToken, refreshToken string, expiresIn int, err error)
 }
 
 type AuthHandler struct {
@@ -25,6 +26,11 @@ func NewAuthHandler(svc authService) *AuthHandler {
 type registerRequest struct {
 	Email    string `json:"email"    binding:"required,email"`
 	Password string `json:"password" binding:"required,min=8"`
+}
+
+type loginRequest struct {
+	Email    string `json:"email"    binding:"required,email"`
+	Password string `json:"password" binding:"required"`
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
@@ -45,4 +51,28 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, user)
+}
+
+func (h *AuthHandler) Login(c *gin.Context) {
+	var req loginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	access, refresh, expiresIn, err := h.svc.Login(req.Email, req.Password)
+	if err != nil {
+		if errors.Is(err, services.ErrInvalidCredentials) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"access_token":  access,
+		"refresh_token": refresh,
+		"expires_in":    expiresIn,
+	})
 }
