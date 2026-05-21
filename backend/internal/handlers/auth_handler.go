@@ -13,6 +13,7 @@ import (
 type authService interface {
 	Register(email, password string) (*models.User, error)
 	Login(email, password string) (accessToken, refreshToken string, expiresIn int, err error)
+	Refresh(refreshToken string) (accessToken string, expiresIn int, err error)
 }
 
 type AuthHandler struct {
@@ -51,6 +52,33 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, user)
+}
+
+type refreshRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+func (h *AuthHandler) Refresh(c *gin.Context) {
+	var req refreshRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	access, expiresIn, err := h.svc.Refresh(req.RefreshToken)
+	if err != nil {
+		if errors.Is(err, services.ErrExpiredToken) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh token expired"})
+			return
+		}
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"access_token": access,
+		"expires_in":   expiresIn,
+	})
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {

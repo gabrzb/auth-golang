@@ -1,11 +1,17 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/gabrzb/auth-go-gin/internal/config"
 	"github.com/golang-jwt/jwt/v5"
+)
+
+var (
+	ErrInvalidToken = errors.New("invalid token")
+	ErrExpiredToken  = errors.New("token expired")
 )
 
 // Claims is shared by both access and refresh tokens. Email is omitted in refresh tokens.
@@ -47,6 +53,29 @@ func (s *JWTService) GenerateRefreshToken(userID uint) (string, error) {
 
 func (s *JWTService) AccessExpiresIn() int {
 	return int(s.accessExpiration.Seconds())
+}
+
+func (s *JWTService) ValidateToken(tokenString string) (*Claims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, ErrInvalidToken
+		}
+		return []byte(s.secret), nil
+	})
+
+	if err != nil {
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			return nil, ErrExpiredToken
+		}
+		return nil, ErrInvalidToken
+	}
+
+	claims, ok := token.Claims.(*Claims)
+	if !ok || !token.Valid {
+		return nil, ErrInvalidToken
+	}
+
+	return claims, nil
 }
 
 // generate is the single place that creates and signs a JWT (DRY).
