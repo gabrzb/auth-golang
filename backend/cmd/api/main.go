@@ -2,22 +2,26 @@ package main
 
 import (
 	"log"
-	"net/http"
 
 	"github.com/gabrzb/auth-go-gin/internal/config"
 	"github.com/gabrzb/auth-go-gin/internal/database"
+	"github.com/gabrzb/auth-go-gin/internal/handlers"
+	"github.com/gabrzb/auth-go-gin/internal/routes"
+	"github.com/gabrzb/auth-go-gin/internal/services"
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
 	cfg := config.Load()
-	database.Connect(cfg)
+
+	db := database.Connect(cfg)
+	database.Migrate(db)
+
+	authService := services.NewAuthService(db)
+	authHandler := handlers.NewAuthHandler(authService)
 
 	r := gin.Default()
-
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
+	routes.Setup(r, authHandler)
 
 	addr := ":" + cfg.Port
 	log.Printf("Server starting on %s", addr)
