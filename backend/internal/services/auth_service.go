@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"time"
 
 	"github.com/gabrzb/auth-go-gin/internal/models"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -15,7 +16,7 @@ var (
 	ErrUserNotFound       = errors.New("user not found")
 )
 
-// jwtService is the narrow interface AuthService needs — defined here, at the consumption site (SOLID-I, SOLID-D).
+// jwtService is the narrow interface AuthService needs (SOLID-I, SOLID-D).
 type jwtService interface {
 	GenerateAccessToken(userID uint, email string) (string, error)
 	GenerateRefreshToken(userID uint) (string, error)
@@ -23,13 +24,20 @@ type jwtService interface {
 	AccessExpiresIn() int
 }
 
-type AuthService struct {
-	db  *gorm.DB
-	jwt jwtService
+// tokenBlacklist is the narrow interface for revoking tokens (SOLID-I, SOLID-D).
+type tokenBlacklist interface {
+	Add(token string, ttl time.Duration) error
+	Contains(token string) (bool, error)
 }
 
-func NewAuthService(db *gorm.DB, jwt jwtService) *AuthService {
-	return &AuthService{db: db, jwt: jwt}
+type AuthService struct {
+	db        *gorm.DB
+	jwt       jwtService
+	blacklist tokenBlacklist
+}
+
+func NewAuthService(db *gorm.DB, jwt jwtService, blacklist tokenBlacklist) *AuthService {
+	return &AuthService{db: db, jwt: jwt, blacklist: blacklist}
 }
 
 func (s *AuthService) Register(email, password string) (*models.User, error) {
@@ -104,6 +112,31 @@ func (s *AuthService) Refresh(refreshToken string) (string, int, error) {
 	}
 
 	return access, s.jwt.AccessExpiresIn(), nil
+}
+
+func (s *AuthService) Logout(accessToken, refreshToken string) error {
+	if err := s.blacklistToken(accessToken); err != nil {
+		return err
+	}
+	return s.blacklistToken(refreshToken)
+}
+
+// blacklistToken adds a token to the blacklist with a TTL equal to its remaining lifetime (DRY).
+func (s *AuthService) blacklistToken(tokenString string) error {
+	claims, err := s.jwt.ValidateToken(tokenString)
+	if err != nil {
+		if errors.Is(err, ErrExpiredToken) {
+			return nil // already expired — no need to store
+		}
+		return ErrInvalidToken
+	}
+
+	ttl := time.Until(claims.ExpiresAt.Time)
+	if ttl <= 0 {
+		return nil
+	}
+
+	return s.blacklist.Add(tokenString, ttl)
 }
 
 // isUniqueViolation checks for Postgres error code 23505 (unique_violation).
