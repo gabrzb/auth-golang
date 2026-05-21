@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/gabrzb/auth-go-gin/internal/middleware"
 	"github.com/gabrzb/auth-go-gin/internal/models"
 	"github.com/gabrzb/auth-go-gin/internal/services"
 	"github.com/gin-gonic/gin"
@@ -14,6 +15,7 @@ type authService interface {
 	Register(email, password string) (*models.User, error)
 	Login(email, password string) (accessToken, refreshToken string, expiresIn int, err error)
 	Refresh(refreshToken string) (accessToken string, expiresIn int, err error)
+	Logout(accessToken, refreshToken string) error
 }
 
 type AuthHandler struct {
@@ -32,6 +34,27 @@ type registerRequest struct {
 type loginRequest struct {
 	Email    string `json:"email"    binding:"required,email"`
 	Password string `json:"password" binding:"required"`
+}
+
+type logoutRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+func (h *AuthHandler) Logout(c *gin.Context) {
+	accessToken, _ := c.Get(middleware.TokenKey)
+
+	var req logoutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.svc.Logout(accessToken.(string), req.RefreshToken); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "logged out"})
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {

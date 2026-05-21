@@ -25,5 +25,6 @@ func Setup(r *gin.Engine, authHandler *handlers.AuthHandler, userHandler *handle
 	protected.Use(authMiddleware)
 	{
 		protected.GET("/me", userHandler.Me)
+		protected.POST("/auth/logout", authHandler.Logout)
 	}
 }

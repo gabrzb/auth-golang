@@ -10,6 +10,7 @@ import (
 )
 
 const UserIDKey = "user_id"
+const TokenKey = "token"
 
 // tokenValidator is the narrow interface the middleware needs (SOLID-I, SOLID-D).
 type tokenValidator interface {
@@ -37,6 +38,7 @@ func Auth(validator tokenValidator) gin.HandlerFunc {
 		}
 
 		c.Set(UserIDKey, claims.UserID)
+		c.Set(TokenKey, tokenString)
 		c.Next()
 	}
 }
