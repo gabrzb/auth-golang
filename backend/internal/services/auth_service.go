@@ -18,6 +18,7 @@ var (
 type jwtService interface {
 	GenerateAccessToken(userID uint, email string) (string, error)
 	GenerateRefreshToken(userID uint) (string, error)
+	ValidateToken(tokenString string) (*Claims, error)
 	AccessExpiresIn() int
 }
 
