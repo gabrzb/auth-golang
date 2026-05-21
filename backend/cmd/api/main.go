@@ -9,6 +9,7 @@ import (
 	"github.com/gabrzb/auth-go-gin/internal/middleware"
 	"github.com/gabrzb/auth-go-gin/internal/routes"
 	"github.com/gabrzb/auth-go-gin/internal/services"
+	"github.com/gabrzb/auth-go-gin/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,17 +19,19 @@ func main() {
 	db := database.Connect(cfg)
 	database.Migrate(db)
 
+	redisStore := store.NewRedisStore(cfg)
+
 	jwtService, err := services.NewJWTService(cfg)
 	if err != nil {
 		log.Fatalf("Failed to initialize JWT service: %v", err)
 	}
 
-	authService := services.NewAuthService(db, jwtService)
+	authService := services.NewAuthService(db, jwtService, redisStore)
 	authHandler := handlers.NewAuthHandler(authService)
 	userHandler := handlers.NewUserHandler(authService)
 
 	r := gin.Default()
-	routes.Setup(r, authHandler, userHandler, middleware.Auth(jwtService))
+	routes.Setup(r, authHandler, userHandler, middleware.Auth(jwtService, redisStore))
 
 	addr := ":" + cfg.Port
 	log.Printf("Server starting on %s", addr)
