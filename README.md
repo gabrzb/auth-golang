@@ -12,14 +12,25 @@ A RESTful authentication API built with Go, Gin, JWT, and PostgreSQL. Covers use
 - **godotenv** — environment variable loading
 - **Docker + Docker Compose** — containerization
 
-## Running locally
+## Running with Docker (recommended)
+
+```bash
+cp .env.example .env   # fill in values if needed
+docker compose up
+```
+
+Both the API and PostgreSQL start together. The API waits for the database healthcheck before booting.
+
+## Running locally (Go only)
+
+Requires a running PostgreSQL instance. Set the connection variables in a `.env` file, then:
 
 ```bash
 cd backend
 go run cmd/api/main.go
 ```
 
-The server starts on port `8080`. Check it with:
+Check it with:
 
 ```bash
 curl http://localhost:8080/health
@@ -28,11 +39,23 @@ curl http://localhost:8080/health
 
 ## Environment variables
 
-Copy `.env.example` to `.env` and fill in the values:
+Copy `.env.example` to `.env` and adjust as needed:
 
 ```bash
 cp .env.example .env
 ```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `8080` | Server port |
+| `DB_HOST` | `localhost` | Postgres host |
+| `DB_PORT` | `5432` | Postgres port |
+| `DB_USER` | `postgres` | Postgres user |
+| `DB_PASSWORD` | `postgres` | Postgres password |
+| `DB_NAME` | `auth_db` | Database name |
+| `JWT_SECRET` | — | Secret for signing tokens |
+| `JWT_ACCESS_EXPIRATION` | `15m` | Access token TTL |
+| `JWT_REFRESH_EXPIRATION` | `168h` | Refresh token TTL |
 
 ## Endpoints
 
@@ -59,6 +82,8 @@ cp .env.example .env
 │   │   └── services/        # business logic + JWT service
 │   ├── go.mod
 │   └── go.sum
+├── Dockerfile
+├── docker-compose.yml
 ├── .env.example
 └── .gitignore
 ```
