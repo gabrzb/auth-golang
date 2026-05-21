@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -19,7 +20,7 @@ type tokenValidator interface {
 
 // blacklistChecker is the narrow interface for blacklist lookup (SOLID-I, SOLID-D).
 type blacklistChecker interface {
-	Contains(token string) (bool, error)
+	Contains(ctx context.Context, token string) (bool, error)
 }
 
 func Auth(validator tokenValidator, blacklist blacklistChecker) gin.HandlerFunc {
@@ -42,7 +43,7 @@ func Auth(validator tokenValidator, blacklist blacklistChecker) gin.HandlerFunc 
 			return
 		}
 
-		revoked, err := blacklist.Contains(tokenString)
+		revoked, err := blacklist.Contains(c.Request.Context(), tokenString)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 			return

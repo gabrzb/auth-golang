@@ -19,7 +19,10 @@ func main() {
 	db := database.Connect(cfg)
 	database.Migrate(db)
 
-	redisStore := store.NewRedisStore(cfg)
+	redisStore, err := store.NewRedisStore(cfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize Redis: %v", err)
+	}
 
 	jwtService, err := services.NewJWTService(cfg)
 	if err != nil {
