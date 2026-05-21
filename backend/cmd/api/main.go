@@ -6,6 +6,7 @@ import (
 	"github.com/gabrzb/auth-go-gin/internal/config"
 	"github.com/gabrzb/auth-go-gin/internal/database"
 	"github.com/gabrzb/auth-go-gin/internal/handlers"
+	"github.com/gabrzb/auth-go-gin/internal/middleware"
 	"github.com/gabrzb/auth-go-gin/internal/routes"
 	"github.com/gabrzb/auth-go-gin/internal/services"
 	"github.com/gin-gonic/gin"
@@ -24,9 +25,10 @@ func main() {
 
 	authService := services.NewAuthService(db, jwtService)
 	authHandler := handlers.NewAuthHandler(authService)
+	userHandler := handlers.NewUserHandler(authService)
 
 	r := gin.Default()
-	routes.Setup(r, authHandler)
+	routes.Setup(r, authHandler, userHandler, middleware.Auth(jwtService))
 
 	addr := ":" + cfg.Port
 	log.Printf("Server starting on %s", addr)
