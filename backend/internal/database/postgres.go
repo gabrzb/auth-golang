@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/gabrzb/auth-go-gin/internal/config"
+	"github.com/gabrzb/auth-go-gin/internal/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -22,4 +23,11 @@ func Connect(cfg *config.Config) *gorm.DB {
 
 	log.Println("Database connected")
 	return db
+}
+
+func Migrate(db *gorm.DB) {
+	if err := db.AutoMigrate(&models.User{}); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
+	log.Println("Database migrated")
 }

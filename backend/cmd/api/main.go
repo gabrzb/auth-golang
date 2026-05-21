@@ -11,7 +11,8 @@ import (
 
 func main() {
 	cfg := config.Load()
-	database.Connect(cfg)
+	db := database.Connect(cfg)
+	database.Migrate(db)
 
 	r := gin.Default()
 
