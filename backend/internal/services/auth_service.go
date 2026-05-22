@@ -23,6 +23,7 @@ type jwtService interface {
 	GenerateRefreshToken(userID uint) (string, error)
 	ValidateToken(tokenString string) (*Claims, error)
 	AccessExpiresIn() int
+	RefreshExpiresIn() int
 }
 
 // tokenBlacklist is the narrow interface for revoking tokens (SOLID-I, SOLID-D).
@@ -115,6 +116,38 @@ func (s *AuthService) Refresh(refreshToken string) (string, int, error) {
 	return access, s.jwt.AccessExpiresIn(), nil
 }
 
+// Rotate validates the refresh token, blacklists it, and issues a fresh access +
+// refresh pair. Defense-in-depth: a stolen refresh token only buys the attacker
+// until the legitimate user next rotates. Blacklist must succeed before the new
+// pair is minted so we never leave two valid refresh tokens for one session.
+func (s *AuthService) Rotate(refreshToken string) (access, refresh string, accessExpiresIn, refreshExpiresIn int, err error) {
+	claims, err := s.jwt.ValidateToken(refreshToken)
+	if err != nil {
+		return "", "", 0, 0, err // ErrExpiredToken or ErrInvalidToken propagate as-is
+	}
+
+	user, err := s.GetUserByID(claims.UserID)
+	if err != nil {
+		return "", "", 0, 0, err
+	}
+
+	if err := s.blacklistToken(refreshToken); err != nil {
+		return "", "", 0, 0, err
+	}
+
+	access, err = s.jwt.GenerateAccessToken(user.ID, user.Email)
+	if err != nil {
+		return "", "", 0, 0, err
+	}
+
+	refresh, err = s.jwt.GenerateRefreshToken(user.ID)
+	if err != nil {
+		return "", "", 0, 0, err
+	}
+
+	return access, refresh, s.jwt.AccessExpiresIn(), s.jwt.RefreshExpiresIn(), nil
+}
+
 func (s *AuthService) Logout(accessToken, refreshToken string) error {
 	errAccess := s.blacklistToken(accessToken)
 	errRefresh := s.blacklistToken(refreshToken)
@@ -122,7 +155,13 @@ func (s *AuthService) Logout(accessToken, refreshToken string) error {
 }
 
 // blacklistToken adds a token to the blacklist with a TTL equal to its remaining lifetime (DRY).
+// An empty token string is a no-op so callers (e.g. Logout when the refresh cookie is missing)
+// can pass through without special-casing.
 func (s *AuthService) blacklistToken(tokenString string) error {
+	if tokenString == "" {
+		return nil
+	}
+
 	claims, err := s.jwt.ValidateToken(tokenString)
 	if err != nil {
 		if errors.Is(err, ErrExpiredToken) {
