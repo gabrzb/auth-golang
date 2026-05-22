@@ -1,0 +1,78 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* -----------------------------------------------------------
+   Design tokens (Variant A wireframes — sketchy / handwritten)
+   ----------------------------------------------------------- */
+@theme inline {
+  /* Palette: 5-color neon — black / pink / yellow / cyan / white.
+     paper      #ffffff — card bg
+     paper-2    #0c0f0a — body bg (near-black, dramatic frame around the card)
+     ink        #0c0f0a — primary text & borders
+     ink-soft   #ff206e — focus border (hot pink, clear interaction feedback)
+     ink-mute   #41ead4 — small muted labels & subtitles (cyan)
+     brand      #fbff12 — accent button (electric yellow) */
+  --color-ink: #0c0f0a;
+  --color-ink-soft: #ff206e;
+  --color-ink-mute: #18DCC2;
+  --color-paper: #ffffff;
+  --color-paper-2: #0c0f0a;
+  --color-brand: #fbff12;
+
+  --font-hand: "Kalam", system-ui, sans-serif;
+  --font-display: "Gloria Hallelujah", "Kalam", cursive;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Bridge our palette into shadcn's semantic tokens so the
+     primitives we don't customize still look coherent. */
+  --color-background: var(--color-paper);
+  --color-foreground: var(--color-ink);
+  --color-card: var(--color-paper);
+  --color-card-foreground: var(--color-ink);
+  --color-popover: var(--color-paper);
+  --color-popover-foreground: var(--color-ink);
+  --color-primary: var(--color-ink);
+  --color-primary-foreground: var(--color-paper);
+  --color-secondary: var(--color-paper-2);
+  --color-secondary-foreground: var(--color-ink);
+  --color-muted: var(--color-paper-2);
+  --color-muted-foreground: var(--color-ink-mute);
+  --color-accent: var(--color-paper-2);
+  --color-accent-foreground: var(--color-ink);
+  --color-border: var(--color-ink);
+  --color-input: var(--color-ink);
+  --color-ring: var(--color-ink-soft);
+  --color-destructive: oklch(0.577 0.245 27.325);
+
+  --radius: 0.5rem;
+}
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-hand);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  margin: 0;
+}
+
+@utility shadow-ink {
+  box-shadow: 3px 3px 0 var(--color-ink);
+}
+
+@utility link-dashed {
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}

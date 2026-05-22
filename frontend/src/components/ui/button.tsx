@@ -1,0 +1,59 @@
+import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
+import { Slot } from "radix-ui"
+
+import { cn } from "@/lib/utils"
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center rounded-lg border-2 font-hand font-bold lowercase select-none transition-[box-shadow,transform] shadow-ink hover:-translate-y-px active:translate-x-[2px] active:translate-y-[2px] active:[box-shadow:1px_1px_0_var(--color-ink)] disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink-soft cursor-pointer",
+  {
+    variants: {
+      variant: {
+        default: "bg-ink text-paper border-ink",
+        accent: "bg-brand text-ink border-ink",
+        ghost: "bg-transparent text-ink border-ink",
+      },
+      size: {
+        default: "px-4 py-3 text-lg",
+        sm: "px-3 py-2 text-base",
+        lg: "px-5 py-3.5 text-xl",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+)
+
+function Button({
+  className,
+  variant = "default",
+  size = "default",
+  asChild = false,
+  type,
+  ...props
+}: React.ComponentProps<"button"> &
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean
+  }) {
+  const Comp = asChild ? Slot.Root : "button"
+
+  // Native <button> defaults to type="submit" inside a <form>, which is almost
+  // never what we want. Default to "button" unless the caller provided one.
+  // For asChild, leave the type alone so we don't stamp it onto <a> etc.
+  const resolvedType = asChild ? type : (type ?? "button")
+
+  return (
+    <Comp
+      data-slot="button"
+      data-variant={variant}
+      data-size={size}
+      type={resolvedType}
+      className={cn(buttonVariants({ variant, size, className }))}
+      {...props}
+    />
+  )
+}
+
+export { Button, buttonVariants }
