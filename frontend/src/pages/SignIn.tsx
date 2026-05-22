@@ -1,8 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import { Link } from "react-router-dom"
+import { useForm, useWatch } from "react-hook-form"
+import { Link, useNavigate } from "react-router-dom"
+import { toast } from "sonner"
 import { z } from "zod"
 
+import { ApiError } from "@/api/client"
+import { useAuth } from "@/auth/useAuth"
 import { AuthCard } from "@/components/AuthCard"
 import { CircleIcon } from "@/components/CircleIcon"
 import { Button } from "@/components/ui/button"
@@ -30,14 +33,26 @@ const labelClass =
   "font-mono text-[11px] uppercase tracking-wider text-ink-mute"
 
 export function SignIn() {
+  const navigate = useNavigate()
+  const { signIn } = useAuth()
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { email: "", password: "", remember: false },
   })
+  const remember = useWatch({ control: form.control, name: "remember" })
 
-  function onSubmit() {
-    // Real API call lands in Phase 10. Form values are intentionally not logged
-    // here because they contain a plaintext password.
+  async function onSubmit(values: FormValues) {
+    try {
+      await signIn({ email: values.email, password: values.password })
+      navigate("/", { replace: true })
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        toast.error("Invalid email or password")
+        return
+      }
+
+      toast.error("Something went wrong")
+    }
   }
 
   return (
@@ -98,7 +113,7 @@ export function SignIn() {
             <div className="flex items-center gap-2">
               <Checkbox
                 id="remember"
-                checked={form.watch("remember")}
+                checked={remember}
                 onCheckedChange={(v) =>
                   form.setValue("remember", v === true, { shouldDirty: true })
                 }
@@ -116,7 +131,9 @@ export function SignIn() {
             </button>
           </div>
 
-          <Button type="submit">sign in →</Button>
+          <Button type="submit" disabled={form.formState.isSubmitting}>
+            {form.formState.isSubmitting ? "signing in..." : "sign in →"}
+          </Button>
         </form>
       </Form>
 
