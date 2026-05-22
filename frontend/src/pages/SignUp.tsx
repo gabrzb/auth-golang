@@ -4,10 +4,8 @@ import { Link } from "react-router-dom"
 import { z } from "zod"
 
 import { AuthCard } from "@/components/AuthCard"
-import {
-  PasswordStrength,
-  passwordScore,
-} from "@/components/PasswordStrength"
+import { PasswordStrength } from "@/components/PasswordStrength"
+import { passwordScore } from "@/lib/password"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
