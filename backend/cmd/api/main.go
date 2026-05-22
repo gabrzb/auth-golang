@@ -45,7 +45,13 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	routes.Setup(r, authHandler, userHandler, middleware.Auth(jwtService, redisStore))
+	routes.Setup(
+		r,
+		authHandler,
+		userHandler,
+		middleware.Auth(jwtService, redisStore),
+		middleware.RequireOrigin(cfg.AllowedOrigins),
+	)
 
 	addr := ":" + cfg.Port
 	log.Printf("Server starting on %s", addr)
