@@ -40,7 +40,7 @@ func Load() *Config {
 		JWTRefreshExpiration: getEnv("JWT_REFRESH_EXPIRATION", "168h"),
 		RedisAddr:            getEnv("REDIS_ADDR", "localhost:6379"),
 		CookieSecure:         getEnvBool("COOKIE_SECURE", false),
-		AllowedOrigins:       getEnvList("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173"}),
+		AllowedOrigins:       getEnvList("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://127.0.0.1:5173"}),
 	}
 }
 

@@ -59,7 +59,7 @@ cp .env.example .env
 | `JWT_REFRESH_EXPIRATION` | `168h` | Refresh token TTL |
 | `REDIS_ADDR` | `localhost:6379` | Redis address |
 | `COOKIE_SECURE` | `false` | When `true`, the refresh-token cookie is marked `Secure` (HTTPS-only). Keep `false` for `http://localhost`. |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated browser origins allowed by CORS and the origin-check middleware on `/auth/*`. |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated browser origins allowed by CORS and the origin-check middleware on `/auth/*`. |
 
 ## Auth model
 
