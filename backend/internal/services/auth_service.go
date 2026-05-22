@@ -107,6 +107,16 @@ func (s *AuthService) Rotate(refreshToken string) (access, refresh string, acces
 		return "", "", 0, 0, err // ErrExpiredToken or ErrInvalidToken propagate as-is
 	}
 
+	// Reject replays: a refresh that's already been rotated (or revoked via logout)
+	// is in the blacklist even though its signature still validates.
+	revoked, err := s.blacklist.Contains(context.Background(), refreshToken)
+	if err != nil {
+		return "", "", 0, 0, err
+	}
+	if revoked {
+		return "", "", 0, 0, ErrInvalidToken
+	}
+
 	user, err := s.GetUserByID(claims.UserID)
 	if err != nil {
 		return "", "", 0, 0, err
