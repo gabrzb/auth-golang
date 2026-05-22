@@ -35,7 +35,7 @@ export function Dashboard() {
         }}
         className="link-dashed text-sm text-ink-mute font-hand cursor-pointer"
       >
-        not you? sign out
+        sign out
       </button>
     </AuthCard>
   )
