@@ -1,8 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import { Link } from "react-router-dom"
+import { useForm, useWatch } from "react-hook-form"
+import { Link, useNavigate } from "react-router-dom"
+import { toast } from "sonner"
 import { z } from "zod"
 
+import { ApiError } from "@/api/client"
+import { useAuth } from "@/auth/useAuth"
 import { AuthCard } from "@/components/AuthCard"
 import { PasswordStrength } from "@/components/PasswordStrength"
 import { passwordScore } from "@/lib/password"
@@ -34,17 +37,29 @@ const labelClass =
   "font-mono text-[11px] uppercase tracking-wider text-ink-mute"
 
 export function SignUp() {
+  const navigate = useNavigate()
+  const { signUp } = useAuth()
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", email: "", password: "", terms: false },
   })
 
-  const password = form.watch("password")
+  const password = useWatch({ control: form.control, name: "password" })
+  const terms = useWatch({ control: form.control, name: "terms" })
   const score = passwordScore(password ?? "")
 
-  function onSubmit() {
-    // Real API call lands in Phase 10. Form values are intentionally not logged
-    // here because they contain a plaintext password.
+  async function onSubmit(values: FormValues) {
+    try {
+      await signUp({ email: values.email, password: values.password })
+      navigate("/", { replace: true })
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        toast.error("Email already in use")
+        return
+      }
+
+      toast.error("Something went wrong")
+    }
   }
 
   return (
@@ -121,7 +136,7 @@ export function SignUp() {
             <Checkbox
               id="terms"
               className="mt-0.5"
-              checked={form.watch("terms")}
+              checked={terms}
               onCheckedChange={(v) =>
                 form.setValue("terms", v === true, {
                   shouldDirty: true,
@@ -144,8 +159,12 @@ export function SignUp() {
             </p>
           )}
 
-          <Button type="submit" className="mt-1">
-            create account
+          <Button
+            type="submit"
+            className="mt-1"
+            disabled={form.formState.isSubmitting}
+          >
+            {form.formState.isSubmitting ? "creating..." : "create account"}
           </Button>
         </form>
       </Form>
