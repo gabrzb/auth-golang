@@ -10,7 +10,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-ink text-paper border-ink",
-        accent: "bg-brand text-white border-brand",
+        accent: "bg-brand text-ink border-ink",
         ghost: "bg-transparent text-ink border-ink",
       },
       size: {

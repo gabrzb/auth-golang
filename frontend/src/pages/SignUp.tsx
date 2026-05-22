@@ -150,7 +150,7 @@ export function SignUp() {
         </form>
       </Form>
 
-      <p className="text-center text-sm text-ink-mute font-hand mt-auto">
+      <p className="text-center text-sm text-ink-mute font-hand">
         have one?{" "}
         <Link to="/sign-in" className="link-dashed text-ink">
           sign in
