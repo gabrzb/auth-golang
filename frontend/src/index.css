@@ -5,12 +5,19 @@
    Design tokens (Variant A wireframes — sketchy / handwritten)
    ----------------------------------------------------------- */
 @theme inline {
-  --color-ink: #1a1714;
-  --color-ink-soft: #3a342d;
-  --color-ink-mute: #8a8278;
-  --color-paper: #fbf9f3;
-  --color-paper-2: #f3efe4;
-  --color-brand: #c96442;
+  /* Palette: lime → teal → deep blue gradient.
+     paper      #d9ed92 — card bg (lightest)
+     paper-2    #99d98c — body bg (gives the card pop)
+     brand      #34a0a4 — accent button
+     ink-mute   #168aad — muted/secondary text
+     ink-soft   #1e6091 — focus border, soft heading
+     ink        #184e77 — primary text & borders (deepest) */
+  --color-ink: #184e77;
+  --color-ink-soft: #1e6091;
+  --color-ink-mute: #168aad;
+  --color-paper: #d9ed92;
+  --color-paper-2: #99d98c;
+  --color-brand: #34a0a4;
 
   --font-hand: "Kalam", system-ui, sans-serif;
   --font-display: "Gloria Hallelujah", "Kalam", cursive;

@@ -7,10 +7,10 @@ type AuthCardProps = {
 
 export function AuthCard({ children, className }: AuthCardProps) {
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-10 bg-paper-2">
+    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-paper-2">
       <div
         className={cn(
-          "w-full max-w-[26rem] bg-paper rounded-md px-9 py-12 flex flex-col gap-4",
+          "w-full max-w-[34rem] min-h-[40rem] bg-paper rounded-lg px-14 py-20 flex flex-col gap-6 shadow-ink",
           className
         )}
       >
