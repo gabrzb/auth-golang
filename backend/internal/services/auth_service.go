@@ -23,6 +23,7 @@ type jwtService interface {
 	GenerateRefreshToken(userID uint) (string, error)
 	ValidateToken(tokenString string) (*Claims, error)
 	AccessExpiresIn() int
+	RefreshExpiresIn() int
 }
 
 // tokenBlacklist is the narrow interface for revoking tokens (SOLID-I, SOLID-D).
@@ -59,30 +60,30 @@ func (s *AuthService) Register(email, password string) (*models.User, error) {
 	return user, nil
 }
 
-func (s *AuthService) Login(email, password string) (accessToken, refreshToken string, expiresIn int, err error) {
+func (s *AuthService) Login(email, password string) (accessToken, refreshToken string, accessExpiresIn, refreshExpiresIn int, err error) {
 	var user models.User
 	if err = s.db.Where("email = ?", email).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", "", 0, ErrInvalidCredentials
+			return "", "", 0, 0, ErrInvalidCredentials
 		}
-		return "", "", 0, err
+		return "", "", 0, 0, err
 	}
 
 	if err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		return "", "", 0, ErrInvalidCredentials
+		return "", "", 0, 0, ErrInvalidCredentials
 	}
 
 	accessToken, err = s.jwt.GenerateAccessToken(user.ID, user.Email)
 	if err != nil {
-		return "", "", 0, err
+		return "", "", 0, 0, err
 	}
 
 	refreshToken, err = s.jwt.GenerateRefreshToken(user.ID)
 	if err != nil {
-		return "", "", 0, err
+		return "", "", 0, 0, err
 	}
 
-	return accessToken, refreshToken, s.jwt.AccessExpiresIn(), nil
+	return accessToken, refreshToken, s.jwt.AccessExpiresIn(), s.jwt.RefreshExpiresIn(), nil
 }
 
 func (s *AuthService) GetUserByID(id uint) (*models.User, error) {
@@ -96,23 +97,46 @@ func (s *AuthService) GetUserByID(id uint) (*models.User, error) {
 	return &user, nil
 }
 
-func (s *AuthService) Refresh(refreshToken string) (string, int, error) {
+// Rotate validates the refresh token, blacklists it, and issues a fresh access +
+// refresh pair. Defense-in-depth: a stolen refresh token only buys the attacker
+// until the legitimate user next rotates. Blacklist must succeed before the new
+// pair is minted so we never leave two valid refresh tokens for one session.
+func (s *AuthService) Rotate(refreshToken string) (access, refresh string, accessExpiresIn, refreshExpiresIn int, err error) {
 	claims, err := s.jwt.ValidateToken(refreshToken)
 	if err != nil {
-		return "", 0, err // ErrExpiredToken or ErrInvalidToken propagate as-is
+		return "", "", 0, 0, err // ErrExpiredToken or ErrInvalidToken propagate as-is
+	}
+
+	// Reject replays: a refresh that's already been rotated (or revoked via logout)
+	// is in the blacklist even though its signature still validates.
+	revoked, err := s.blacklist.Contains(context.Background(), refreshToken)
+	if err != nil {
+		return "", "", 0, 0, err
+	}
+	if revoked {
+		return "", "", 0, 0, ErrInvalidToken
 	}
 
 	user, err := s.GetUserByID(claims.UserID)
 	if err != nil {
-		return "", 0, err
+		return "", "", 0, 0, err
 	}
 
-	access, err := s.jwt.GenerateAccessToken(user.ID, user.Email)
+	if err := s.blacklistToken(refreshToken); err != nil {
+		return "", "", 0, 0, err
+	}
+
+	access, err = s.jwt.GenerateAccessToken(user.ID, user.Email)
 	if err != nil {
-		return "", 0, err
+		return "", "", 0, 0, err
 	}
 
-	return access, s.jwt.AccessExpiresIn(), nil
+	refresh, err = s.jwt.GenerateRefreshToken(user.ID)
+	if err != nil {
+		return "", "", 0, 0, err
+	}
+
+	return access, refresh, s.jwt.AccessExpiresIn(), s.jwt.RefreshExpiresIn(), nil
 }
 
 func (s *AuthService) Logout(accessToken, refreshToken string) error {
@@ -122,7 +146,13 @@ func (s *AuthService) Logout(accessToken, refreshToken string) error {
 }
 
 // blacklistToken adds a token to the blacklist with a TTL equal to its remaining lifetime (DRY).
+// An empty token string is a no-op so callers (e.g. Logout when the refresh cookie is missing)
+// can pass through without special-casing.
 func (s *AuthService) blacklistToken(tokenString string) error {
+	if tokenString == "" {
+		return nil
+	}
+
 	claims, err := s.jwt.ValidateToken(tokenString)
 	if err != nil {
 		if errors.Is(err, ErrExpiredToken) {

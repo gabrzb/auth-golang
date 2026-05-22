@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"github.com/gabrzb/auth-go-gin/internal/config"
 	"github.com/gabrzb/auth-go-gin/internal/database"
@@ -10,6 +11,7 @@ import (
 	"github.com/gabrzb/auth-go-gin/internal/routes"
 	"github.com/gabrzb/auth-go-gin/internal/services"
 	"github.com/gabrzb/auth-go-gin/internal/store"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -30,11 +32,26 @@ func main() {
 	}
 
 	authService := services.NewAuthService(db, jwtService, redisStore)
-	authHandler := handlers.NewAuthHandler(authService)
+	authHandler := handlers.NewAuthHandler(authService, cfg.CookieSecure)
 	userHandler := handlers.NewUserHandler(authService)
 
 	r := gin.Default()
-	routes.Setup(r, authHandler, userHandler, middleware.Auth(jwtService, redisStore))
+
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     cfg.AllowedOrigins,
+		AllowMethods:     []string{"GET", "POST", "OPTIONS"},
+		AllowHeaders:     []string{"Authorization", "Content-Type"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
+
+	routes.Setup(
+		r,
+		authHandler,
+		userHandler,
+		middleware.Auth(jwtService, redisStore),
+		middleware.RequireOrigin(cfg.AllowedOrigins),
+	)
 
 	addr := ":" + cfg.Port
 	log.Printf("Server starting on %s", addr)

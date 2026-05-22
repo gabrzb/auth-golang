@@ -14,17 +14,34 @@ import (
 // authService is the narrow interface this handler needs — defined here, not in the service package (SOLID-I, SOLID-D).
 type authService interface {
 	Register(email, password string) (*models.User, error)
-	Login(email, password string) (accessToken, refreshToken string, expiresIn int, err error)
-	Refresh(refreshToken string) (accessToken string, expiresIn int, err error)
+	Login(email, password string) (accessToken, refreshToken string, accessExpiresIn, refreshExpiresIn int, err error)
+	Rotate(refreshToken string) (accessToken, newRefreshToken string, accessExpiresIn, refreshExpiresIn int, err error)
 	Logout(accessToken, refreshToken string) error
 }
 
 type AuthHandler struct {
-	svc authService
+	svc          authService
+	cookieSecure bool
 }
 
-func NewAuthHandler(svc authService) *AuthHandler {
-	return &AuthHandler{svc: svc}
+func NewAuthHandler(svc authService, cookieSecure bool) *AuthHandler {
+	return &AuthHandler{svc: svc, cookieSecure: cookieSecure}
+}
+
+const refreshCookieName = "refresh_token"
+const refreshCookiePath = "/auth"
+
+// setRefreshCookie writes the refresh token as an httpOnly + SameSite=Strict cookie
+// scoped to /auth so it isn't sent on every API call. Secure is toggled per env.
+func (h *AuthHandler) setRefreshCookie(c *gin.Context, token string, maxAgeSeconds int) {
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie(refreshCookieName, token, maxAgeSeconds, refreshCookiePath, "", h.cookieSecure, true)
+}
+
+// clearRefreshCookie expires the refresh cookie immediately.
+func (h *AuthHandler) clearRefreshCookie(c *gin.Context) {
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie(refreshCookieName, "", -1, refreshCookiePath, "", h.cookieSecure, true)
 }
 
 type registerRequest struct {
@@ -35,10 +52,6 @@ type registerRequest struct {
 type loginRequest struct {
 	Email    string `json:"email"    binding:"required,email"`
 	Password string `json:"password" binding:"required"`
-}
-
-type logoutRequest struct {
-	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
@@ -53,13 +66,15 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	var req logoutRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	// Refresh cookie is best-effort: if it's missing or malformed we still blacklist
+	// the access token. AuthService.Logout tolerates an empty refresh string.
+	refreshToken, _ := c.Cookie(refreshCookieName)
 
-	if err := h.svc.Logout(accessToken, req.RefreshToken); err != nil {
+	// Always clear the cookie so the browser stops sending a dead token, regardless
+	// of whether blacklisting succeeds below.
+	h.clearRefreshCookie(c)
+
+	if err := h.svc.Logout(accessToken, refreshToken); err != nil {
 		if errors.Is(err, services.ErrInvalidToken) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			return
@@ -92,19 +107,17 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, user)
 }
 
-type refreshRequest struct {
-	RefreshToken string `json:"refresh_token" binding:"required"`
-}
-
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	var req refreshRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	refreshToken, err := c.Cookie(refreshCookieName)
+	if err != nil || refreshToken == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing refresh token"})
 		return
 	}
 
-	access, expiresIn, err := h.svc.Refresh(req.RefreshToken)
+	access, newRefresh, accessExpiresIn, refreshExpiresIn, err := h.svc.Rotate(refreshToken)
 	if err != nil {
+		// Old refresh is no longer valid — clear the cookie so the browser doesn't keep replaying it.
+		h.clearRefreshCookie(c)
 		if errors.Is(err, services.ErrExpiredToken) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh token expired"})
 			return
@@ -113,9 +126,11 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
+	h.setRefreshCookie(c, newRefresh, refreshExpiresIn)
+
 	c.JSON(http.StatusOK, gin.H{
 		"access_token": access,
-		"expires_in":   expiresIn,
+		"expires_in":   accessExpiresIn,
 	})
 }
 
@@ -126,7 +141,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	access, refresh, expiresIn, err := h.svc.Login(req.Email, req.Password)
+	access, refresh, accessExpiresIn, refreshExpiresIn, err := h.svc.Login(req.Email, req.Password)
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidCredentials) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
@@ -136,9 +151,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	h.setRefreshCookie(c, refresh, refreshExpiresIn)
+
 	c.JSON(http.StatusOK, gin.H{
-		"access_token":  access,
-		"refresh_token": refresh,
-		"expires_in":    expiresIn,
+		"access_token": access,
+		"expires_in":   accessExpiresIn,
 	})
 }

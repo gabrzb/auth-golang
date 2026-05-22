@@ -58,6 +58,15 @@ cp .env.example .env
 | `JWT_ACCESS_EXPIRATION` | `15m` | Access token TTL |
 | `JWT_REFRESH_EXPIRATION` | `168h` | Refresh token TTL |
 | `REDIS_ADDR` | `localhost:6379` | Redis address |
+| `COOKIE_SECURE` | `false` | When `true`, the refresh-token cookie is marked `Secure` (HTTPS-only). Keep `false` for `http://localhost`. |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated browser origins allowed by CORS and the origin-check middleware on `/auth/*`. |
+
+## Auth model
+
+- **Access token** — short-lived JWT returned in the JSON response. The client keeps it in memory and sends it as `Authorization: Bearer <token>`.
+- **Refresh token** — long-lived JWT delivered as an **httpOnly, `SameSite=Strict`, `Path=/auth` cookie**. JavaScript can't read it, so XSS can't exfiltrate it; the browser sends it automatically only to `/auth/*` on the same site.
+- **Rotation** — every `POST /auth/refresh` blacklists the incoming refresh token and issues a fresh pair. A stolen refresh token has a short useful life.
+- **CSRF** — `SameSite=Strict` is the primary defense; an `Origin` allow-list middleware on `/auth/*` is belt-and-suspenders for browser callers.
 
 ## Endpoints
 
@@ -65,9 +74,9 @@ cp .env.example .env
 |--------|-------|------|-------------|
 | GET | `/health` | No | Health check |
 | POST | `/auth/register` | No | Create user |
-| POST | `/auth/login` | No | Returns access + refresh tokens |
-| POST | `/auth/refresh` | No | Renew access token |
-| POST | `/auth/logout` | Yes | Invalidate both tokens |
+| POST | `/auth/login` | No | Returns access token in body, sets refresh-token cookie |
+| POST | `/auth/refresh` | Cookie | Reads refresh cookie, rotates pair, sets new cookie |
+| POST | `/auth/logout` | Yes | Blacklists both tokens, clears refresh cookie |
 | GET | `/me` | Yes | Authenticated user data |
 
 ## Usage examples
@@ -98,17 +107,25 @@ curl -X POST http://localhost:8080/auth/register \
 
 ```bash
 curl -X POST http://localhost:8080/auth/login \
+  -c cookies.txt \
   -H "Content-Type: application/json" \
+  -H "Origin: http://localhost:5173" \
   -d '{"email": "user@example.com", "password": "secret123"}'
 ```
 
+Response body — only the access token:
+
 ```json
-{
-  "access_token": "<jwt>",
-  "refresh_token": "<jwt>",
-  "expires_in": 900
-}
+{"access_token": "<jwt>", "expires_in": 900}
 ```
+
+Response also carries:
+
+```
+Set-Cookie: refresh_token=<jwt>; Path=/auth; Max-Age=604800; HttpOnly; SameSite=Strict
+```
+
+The refresh token never appears in JSON.
 
 ### Access protected route
 
@@ -123,10 +140,12 @@ curl http://localhost:8080/me \
 
 ### Refresh access token
 
+No body — the refresh token rides on the cookie set by `/auth/login`. Each call rotates the refresh token (old one is blacklisted, new one is written back to the cookie).
+
 ```bash
 curl -X POST http://localhost:8080/auth/refresh \
-  -H "Content-Type: application/json" \
-  -d '{"refresh_token": "<refresh_token>"}'
+  -b cookies.txt -c cookies.txt \
+  -H "Origin: http://localhost:5173"
 ```
 
 ```json
@@ -135,13 +154,13 @@ curl -X POST http://localhost:8080/auth/refresh \
 
 ### Logout
 
-Invalidates both the access token and refresh token. After this, neither token will be accepted.
+Blacklists both tokens (reading the refresh from the cookie) and clears the refresh cookie. No body required.
 
 ```bash
 curl -X POST http://localhost:8080/auth/logout \
+  -b cookies.txt -c cookies.txt \
   -H "Authorization: Bearer <access_token>" \
-  -H "Content-Type: application/json" \
-  -d '{"refresh_token": "<refresh_token>"}'
+  -H "Origin: http://localhost:5173"
 ```
 
 ```json
