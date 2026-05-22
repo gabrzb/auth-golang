@@ -54,10 +54,6 @@ type loginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
-type logoutRequest struct {
-	RefreshToken string `json:"refresh_token" binding:"required"`
-}
-
 func (h *AuthHandler) Logout(c *gin.Context) {
 	val, exists := c.Get(middleware.TokenKey)
 	if !exists {
@@ -70,13 +66,15 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	var req logoutRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	// Refresh cookie is best-effort: if it's missing or malformed we still blacklist
+	// the access token. AuthService.Logout tolerates an empty refresh string.
+	refreshToken, _ := c.Cookie(refreshCookieName)
 
-	if err := h.svc.Logout(accessToken, req.RefreshToken); err != nil {
+	// Always clear the cookie so the browser stops sending a dead token, regardless
+	// of whether blacklisting succeeds below.
+	h.clearRefreshCookie(c)
+
+	if err := h.svc.Logout(accessToken, refreshToken); err != nil {
 		if errors.Is(err, services.ErrInvalidToken) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			return
