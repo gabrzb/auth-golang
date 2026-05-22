@@ -35,9 +35,9 @@ export function SignIn() {
     defaultValues: { email: "", password: "", remember: false },
   })
 
-  function onSubmit(values: FormValues) {
-    // submit wiring lands in Phase 10
-    console.log("sign in", values)
+  function onSubmit() {
+    // Real API call lands in Phase 10. Form values are intentionally not logged
+    // here because they contain a plaintext password.
   }
 
   return (

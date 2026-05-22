@@ -22,7 +22,8 @@ export function Dashboard() {
       <Button
         variant="accent"
         className="mt-2 w-full"
-        onClick={() => console.log("take me home — wired in Phase 10")}
+        disabled
+        title="enabled in Phase 10 once the main app route exists"
       >
         take me home →
       </Button>
@@ -30,7 +31,7 @@ export function Dashboard() {
       <button
         type="button"
         onClick={() => {
-          console.log("sign out — wired in Phase 10")
+          // Real sign-out call lands in Phase 10; for now just bounce back.
           navigate("/sign-in")
         }}
         className="link-dashed text-sm text-ink-mute font-hand cursor-pointer"
