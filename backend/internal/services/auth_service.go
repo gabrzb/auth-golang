@@ -60,30 +60,30 @@ func (s *AuthService) Register(email, password string) (*models.User, error) {
 	return user, nil
 }
 
-func (s *AuthService) Login(email, password string) (accessToken, refreshToken string, expiresIn int, err error) {
+func (s *AuthService) Login(email, password string) (accessToken, refreshToken string, accessExpiresIn, refreshExpiresIn int, err error) {
 	var user models.User
 	if err = s.db.Where("email = ?", email).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", "", 0, ErrInvalidCredentials
+			return "", "", 0, 0, ErrInvalidCredentials
 		}
-		return "", "", 0, err
+		return "", "", 0, 0, err
 	}
 
 	if err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		return "", "", 0, ErrInvalidCredentials
+		return "", "", 0, 0, ErrInvalidCredentials
 	}
 
 	accessToken, err = s.jwt.GenerateAccessToken(user.ID, user.Email)
 	if err != nil {
-		return "", "", 0, err
+		return "", "", 0, 0, err
 	}
 
 	refreshToken, err = s.jwt.GenerateRefreshToken(user.ID)
 	if err != nil {
-		return "", "", 0, err
+		return "", "", 0, 0, err
 	}
 
-	return accessToken, refreshToken, s.jwt.AccessExpiresIn(), nil
+	return accessToken, refreshToken, s.jwt.AccessExpiresIn(), s.jwt.RefreshExpiresIn(), nil
 }
 
 func (s *AuthService) GetUserByID(id uint) (*models.User, error) {

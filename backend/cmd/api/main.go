@@ -30,7 +30,7 @@ func main() {
 	}
 
 	authService := services.NewAuthService(db, jwtService, redisStore)
-	authHandler := handlers.NewAuthHandler(authService)
+	authHandler := handlers.NewAuthHandler(authService, cfg.CookieSecure)
 	userHandler := handlers.NewUserHandler(authService)
 
 	r := gin.Default()
