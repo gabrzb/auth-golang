@@ -97,25 +97,6 @@ func (s *AuthService) GetUserByID(id uint) (*models.User, error) {
 	return &user, nil
 }
 
-func (s *AuthService) Refresh(refreshToken string) (string, int, error) {
-	claims, err := s.jwt.ValidateToken(refreshToken)
-	if err != nil {
-		return "", 0, err // ErrExpiredToken or ErrInvalidToken propagate as-is
-	}
-
-	user, err := s.GetUserByID(claims.UserID)
-	if err != nil {
-		return "", 0, err
-	}
-
-	access, err := s.jwt.GenerateAccessToken(user.ID, user.Email)
-	if err != nil {
-		return "", 0, err
-	}
-
-	return access, s.jwt.AccessExpiresIn(), nil
-}
-
 // Rotate validates the refresh token, blacklists it, and issues a fresh access +
 // refresh pair. Defense-in-depth: a stolen refresh token only buys the attacker
 // until the legitimate user next rotates. Blacklist must succeed before the new
