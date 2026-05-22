@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"github.com/gabrzb/auth-go-gin/internal/config"
 	"github.com/gabrzb/auth-go-gin/internal/database"
@@ -10,6 +11,7 @@ import (
 	"github.com/gabrzb/auth-go-gin/internal/routes"
 	"github.com/gabrzb/auth-go-gin/internal/services"
 	"github.com/gabrzb/auth-go-gin/internal/store"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -34,6 +36,15 @@ func main() {
 	userHandler := handlers.NewUserHandler(authService)
 
 	r := gin.Default()
+
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     cfg.AllowedOrigins,
+		AllowMethods:     []string{"GET", "POST", "OPTIONS"},
+		AllowHeaders:     []string{"Authorization", "Content-Type"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
+
 	routes.Setup(r, authHandler, userHandler, middleware.Auth(jwtService, redisStore))
 
 	addr := ":" + cfg.Port
