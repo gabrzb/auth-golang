@@ -20,7 +20,14 @@ cp .env.example .env   # fill in values if needed
 docker compose up
 ```
 
-API, PostgreSQL, and Redis start together. The API waits for both database and Redis healthchecks before booting.
+The SPA, API, PostgreSQL, and Redis start together. Open `http://localhost`; Caddy serves the frontend and proxies `/api/*` to the API on the internal Docker network.
+
+Verify it's up:
+
+```bash
+curl http://localhost/api/health
+# {"status":"ok"}
+```
 
 ## Running locally (Go only)
 
@@ -59,7 +66,17 @@ cp .env.example .env
 | `JWT_REFRESH_EXPIRATION` | `168h` | Refresh token TTL |
 | `REDIS_ADDR` | `localhost:6379` | Redis address |
 | `COOKIE_SECURE` | `false` | When `true`, the refresh-token cookie is marked `Secure` (HTTPS-only). Keep `false` for `http://localhost`. |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated browser origins allowed by CORS and the origin-check middleware on `/auth/*`. |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173,http://localhost,http://127.0.0.1` | Comma-separated browser origins allowed by CORS and the origin-check middleware on `/auth/*`. |
+
+## Production deployment
+
+Use the production overlay to serve the SPA through Caddy and keep the API private to the Docker network:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
+```
+
+This publishes only `web` on `http://localhost`. Browser requests go to `/api/...`, Caddy strips `/api`, and the API receives same-origin auth requests from the proxy. The overlay sets `COOKIE_SECURE=true`; keep the base compose file for plain HTTP local development if your browser refuses Secure cookies on localhost.
 
 ## Auth model
 
@@ -84,7 +101,7 @@ cp .env.example .env
 ### Health check
 
 ```bash
-curl http://localhost:8080/health
+curl http://localhost/api/health
 ```
 
 ```json
@@ -94,8 +111,9 @@ curl http://localhost:8080/health
 ### Register
 
 ```bash
-curl -X POST http://localhost:8080/auth/register \
+curl -X POST http://localhost/api/auth/register \
   -H "Content-Type: application/json" \
+  -H "Origin: http://localhost" \
   -d '{"email": "user@example.com", "password": "secret123"}'
 ```
 
@@ -106,10 +124,10 @@ curl -X POST http://localhost:8080/auth/register \
 ### Login
 
 ```bash
-curl -X POST http://localhost:8080/auth/login \
+curl -X POST http://localhost/api/auth/login \
   -c cookies.txt \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:5173" \
+  -H "Origin: http://localhost" \
   -d '{"email": "user@example.com", "password": "secret123"}'
 ```
 
@@ -130,7 +148,7 @@ The refresh token never appears in JSON.
 ### Access protected route
 
 ```bash
-curl http://localhost:8080/me \
+curl http://localhost/api/me \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -143,9 +161,9 @@ curl http://localhost:8080/me \
 No body — the refresh token rides on the cookie set by `/auth/login`. Each call rotates the refresh token (old one is blacklisted, new one is written back to the cookie).
 
 ```bash
-curl -X POST http://localhost:8080/auth/refresh \
+curl -X POST http://localhost/api/auth/refresh \
   -b cookies.txt -c cookies.txt \
-  -H "Origin: http://localhost:5173"
+  -H "Origin: http://localhost"
 ```
 
 ```json
@@ -157,10 +175,10 @@ curl -X POST http://localhost:8080/auth/refresh \
 Blacklists both tokens (reading the refresh from the cookie) and clears the refresh cookie. No body required.
 
 ```bash
-curl -X POST http://localhost:8080/auth/logout \
+curl -X POST http://localhost/api/auth/logout \
   -b cookies.txt -c cookies.txt \
   -H "Authorization: Bearer <access_token>" \
-  -H "Origin: http://localhost:5173"
+  -H "Origin: http://localhost"
 ```
 
 ```json
@@ -197,8 +215,14 @@ Common HTTP status codes:
 │   │   └── store/           # Redis token blacklist
 │   ├── go.mod
 │   └── go.sum
-├── Dockerfile
+├── frontend/
+│   ├── src/                 # React SPA
+│   ├── Caddyfile            # SPA + /api reverse proxy
+│   ├── Dockerfile           # production frontend image
+│   └── package.json
+├── Dockerfile               # API image
 ├── docker-compose.yml
+├── docker-compose.prod.yml
 ├── .env.example
 └── .gitignore
 ```
