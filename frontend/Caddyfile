@@ -1,0 +1,33 @@
+{
+	servers {
+		timeouts {
+			read_body 30s
+			read_header 10s
+			write 60s
+			idle 2m
+		}
+	}
+}
+
+:80 {
+	respond /health 200
+
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy api:8080 {
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 30s
+				read_timeout 30s
+				write_timeout 30s
+				keepalive 30s
+			}
+		}
+	}
+
+	handle {
+		root * /usr/share/caddy
+		try_files {path} /index.html
+		file_server
+	}
+}
