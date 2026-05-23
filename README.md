@@ -73,6 +73,7 @@ cp .env.example .env
 Use the production overlay to serve the SPA through Caddy and keep the API private to the Docker network:
 
 ```bash
+CORS_ALLOWED_ORIGINS=https://yourdomain.com \
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
 ```
 
